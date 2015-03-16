@@ -54,10 +54,12 @@ def updateImage():
     canny_thresh_low = cv2.getTrackbarPos(NAME_CANNY_LOWER, WINDOW_CANNY)
     canny_thresh_high = cv2.getTrackbarPos(NAME_CANNY_UPPER, WINDOW_CANNY)
     canny_img = Filtering.CannyFilter(grayscaled_image, canny_thresh_low, canny_thresh_high)
+    canny_img = Operations.RemoveAboveHorizon(canny_img)
     cv2.imshow(WINDOW_CANNY, canny_img)
 
     # HOUGH FILTER
     hough_threshold = cv2.getTrackbarPos(NAME_HOUGH_THRESHOLD, WINDOW_HOUGH)
+
     lines = Filtering.HoughFilter(canny_img, hough_threshold)
 
     # SEPARATE STREETS
@@ -78,16 +80,18 @@ def updateImage():
         street_lines_image = Draw.DrawHoughLinesOnImage(cluster2, street_lines_image, (255, 0, 255))
 
         # SHOW HOUGH LINE IMAGES
-        cv2.imshow(WINDOW_HOUGH, np.vstack((all_lines_image, lane_seperated_image, street_lines_image)))
+        # cv2.imshow(WINDOW_HOUGH, np.vstack((all_lines_image, lane_seperated_image, street_lines_image)))
         smaller_images = np.vstack((cv2.resize(all_lines_image, (0, 0), fx=0.5, fy=0.5), cv2.resize(lane_seperated_image, (0, 0), fx=0.5, fy=0.5), cv2.resize(street_lines_image, (0,0), fx=0.5, fy=0.5)))
-        # cv2.imshow(WINDOW_HOUGH, smaller_images)
+        cv2.imshow(WINDOW_HOUGH, smaller_images)
 
     # PROBABALISTIC HOUGH FILTER
     lines_p = Filtering.ProbabalisticHoughFilter(canny_img, hough_threshold)
+    # lines_p = Filtering.ProbabalisticHoughFilter(canny_img, hough_threshold)
+    lines_converted_p = Operations.ConvertProbHoughPointsToHoughPoints(lines_p)
     # SEPARATE STREETS
-    if lines_p is not None:
+    if lines_converted_p is not None:
         # # GET THE LINES ASSOCIATED WITH YOUR LANE ONLY, BY ANGLE
-        # street_lines = SeparateStreets(lines)
+        street_lines = Operations.SeparateStreets(lines)
         # # CLUSTER INTO LEFT AND RIGHT LANE (HOPEFULLY)
         # if np.shape(street_lines)[0] > 2:
         #     cluster1, cluster2 = clusterHoughPoints(street_lines)
@@ -97,6 +101,7 @@ def updateImage():
         # PLOT HOUGH LINES AND STREETS
         rgb_image_p = np.copy(cv2.cvtColor(grayscaled_image, cv2.COLOR_GRAY2BGR))
         all_lines_image_p = Draw.DrawProbHoughLinesOnImage(lines_p[0], rgb_image_p, (0, 0, 255))
+        all_lines_image_p = Draw.DrawHoughLinesOnImage(street_lines, all_lines_image_p, (0, 255, 0))
         # lane_seperated_image_p = Draw.DrawHoughLinesOnImage(street_lines_p, rgb_image_p, (0, 0, 255))
         # street_lines_image_p = Draw.DrawHoughLinesOnImage(cluster1, rgb_image_p, (255, 255, 0))
         # street_lines_image_p = Draw.DrawHoughLinesOnImage(cluster2, street_lines_image_p, (255, 0, 255))
@@ -137,10 +142,10 @@ if __name__ == '__main__':
     # Show the input_image, explicitely call trackbar
     onTrackbar(0)
 
-    writer = cv2.VideoWriter('Name.avi', -1, 30, (1280, 720))
+    # writer = cv2.VideoWriter('res/Highway.avi', -1, 30, (1280, 720))
 
     cap = cv2.VideoCapture()
-    cap.open('res/StreetVideo.mp4')
+    cap.open('res/Highway.avi')
     while cap.isOpened():
         ret, frame = cap.read()
 
@@ -150,6 +155,12 @@ if __name__ == '__main__':
         # cv2.imshow('frame', gray)
         if cv2.waitKey(20) & 0xFF == ord('q'):
             break
+
+        if cv2.waitKey(20) & 0xFF == ord('1'):
+            while True:
+                if cv2.waitKey(20) & 0xFF == ord('2'):
+                    break
+
 
     cap.release()
 

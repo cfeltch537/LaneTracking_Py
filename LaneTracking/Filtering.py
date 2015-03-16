@@ -9,7 +9,8 @@ def CannyFilter(img, thresh_low, thresh_high):
     # OUTPUT - CANNY IMAGE
 
     # BLUR THEN CANNY
-    blurred_image = cv2.blur(img, (3, 3))
+    # blurred_image = cv2.blur(img, (3, 3))
+    blurred_image = img
     canny_img = cv2.Canny(blurred_image, thresh_low, thresh_high, 3)
     return canny_img
 
@@ -47,6 +48,6 @@ def ProbabalisticHoughFilter(canny_img, threshold):
         1.0,  # rho
         np.pi / 180.0,  # theta
         threshold,  # threshold
-        5, 0)  # length divisor, # angular resolution divisor
+        40, 1)  # length divisor, # angular resolution divisor
     return lines
 

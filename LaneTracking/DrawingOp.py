@@ -12,10 +12,12 @@ def DrawHoughLinesOnImage(lines, image, color):
             b = np.sin(theta)
             x0 = a * rho
             y0 = b * rho
+            if np.isnan(a) or np.isnan(b) or np.isnan(x0) or np.isnan(y0):
+                print "Found a NaN"
             x1 = int(x0 + 1000 * (-b))
-            y1 = int(y0 + 1000 * (a))
+            y1 = int(y0 + 1000 * a)
             x2 = int(x0 - 1000 * (-b))
-            y2 = int(y0 - 1000 * (a))
+            y2 = int(y0 - 1000 * a)
             cv2.line(hough_image, (x1, y1), (x2, y2), color, 1)
     return hough_image
 
