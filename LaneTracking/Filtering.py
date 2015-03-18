@@ -8,9 +8,13 @@ def CannyFilter(img, thresh_low, thresh_high):
     # INPUT - GRAYSCALE IMAGE
     # OUTPUT - CANNY IMAGE
 
+    image = np.copy(img)
+    if thresh_low is None or thresh_high is None:
+        print 'A Threshold is None'
+
     # BLUR THEN CANNY
-    # blurred_image = cv2.blur(img, (3, 3))
-    blurred_image = img
+    blurred_image = cv2.blur(image, (3, 3))
+    # blurred_image = image
     canny_img = cv2.Canny(blurred_image, thresh_low, thresh_high, 3)
     return canny_img
 

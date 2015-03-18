@@ -2,6 +2,7 @@
 # NOT QUITE FILTERS
 
 import numpy as np
+import cv2
 
 
 def SeparateStreets(lines):
@@ -9,14 +10,26 @@ def SeparateStreets(lines):
     # INPUT - CANNY IMAGE
     # OUTPUT - LINES
 
-    new_lines = np.copy(lines[0])
+    if lines is None:
+        return None
+
+    # Handle 2 dimensions, or 3
+    new_lines = None
+    if np.ndim(lines) is 2:
+        new_lines = np.copy(lines)
+    elif np.ndim(lines) is 3:
+        new_lines = np.copy(lines[0])
+    else:
+        print 'Strange number of dimensions? in SeparateStreets()'
+        return new_lines
+
     indices_for_removal = np.array([])
     for i in range(np.shape(new_lines)[0]):
         rho_theta = new_lines[i]
         theta_degrees = rho_theta[1] * 180 / np.pi
 
         # if isCloseToHorizontal(theta_degrees) or isCloseToVertical(theta_degrees):
-        if isMarkingsOfCurrentLane(theta_degrees):
+        if isMarkingsOfCurrentLane(theta_degrees) and not isCloseToVertical(theta_degrees):
             indices_for_removal = np.append(indices_for_removal, [i])
             # print 'Removed:' + str(theta_degrees)
 
@@ -47,7 +60,7 @@ def isCloseToHorizontal(theta_degrees):
 
 def isCloseToVertical(theta_degrees):
     # Returns true if 'theta_degrees' is within 90 +- HORIZON_ANGLE_TO_REMOVE
-    VERTICAL_ANGLE_TO_REMOVE = 1
+    VERTICAL_ANGLE_TO_REMOVE = 2
     if np.greater_equal(theta_degrees, 180 - VERTICAL_ANGLE_TO_REMOVE) \
             or np.less_equal(theta_degrees, 0 + VERTICAL_ANGLE_TO_REMOVE):
         return True
@@ -55,20 +68,31 @@ def isCloseToVertical(theta_degrees):
         return False
 
 
-def RemoveAboveHorizon(binary_image):
+def RemoveAboveHorizon(binary_image, offset):
+
     half_size = (np.shape(binary_image)[0]) / 2
-    binary_image[0:half_size] = 0
-    print 'Removed Horizon'
+    binary_image[0:half_size + offset] = 0
+    # print 'Removed Horizon'
+    
     return binary_image
 
 
 def ConvertProbHoughPointsToHoughPoints(points):
     lines = None
-    if points is not None:
+
+    if points is None:
+        return None
+    else:
+        # Handle 2 dimensions, or 3
         if np.ndim(points) is 2:
             points = points
-        else:
+        elif np.ndim(points) is 3:
             points = points[0]
+        else:
+            print 'Strange number of dimensions? in ConvertProbHoughPointsToHoughPoints()'
+            return None
+
+        # For each coordinate convert from Cartesian to Hough Space
         for coordSet in points:
             coordSet_float = coordSet.astype(np.float32)
             x1 = coordSet_float[0]
@@ -93,7 +117,6 @@ def ConvertProbHoughPointsToHoughPoints(points):
                 y_int = B
                 x_int = -B / M
                 x0 = B / (1/M + M)
-                # y0 =
                 theta = (90 * np.pi/180) - np.arctan2(y_int, x_int)
                 rho = - x0 / np.cos(theta)
 
@@ -102,8 +125,6 @@ def ConvertProbHoughPointsToHoughPoints(points):
                 print "Look NaN!"
 
             hough_point = np.array([[rho, theta]])
-
-            # print "Original " + str(points) + " -> " + str(hough_point)
 
             if lines is None:
                 lines = np.copy(hough_point)
@@ -114,3 +135,61 @@ def ConvertProbHoughPointsToHoughPoints(points):
         return lines.astype(np.float32)
     else:
         return lines
+
+
+def ClusterHoughPoints(lines):
+
+    if lines is None or np.shape(lines)[0] < 2:
+        return None, None
+
+    Z = lines
+
+    # define criteria and apply kmeans()
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+    ret, label, center = cv2.kmeans(Z, 2, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+
+    # Now separate the data, Note the flatten()
+    A = Z[label.ravel() == 0]
+    B = Z[label.ravel() == 1]
+
+    return A, B
+
+
+def DetermineLanes(cluster1, cluster2, left_lane, right_lane):
+
+    if cluster1 is None and cluster2 is None:
+        print "DetermineLanes: Both clusters are None"
+        return None, None
+
+    lane1 = GetLaneFromMedian(cluster1)
+    lane2 = GetLaneFromMedian(cluster2)
+
+    if lane1 is None:
+        return lane2, None
+    if lane2 is None:
+        return lane1, None
+
+    if lane1[1] < lane2[1]:
+        left_lane = lane1
+        right_lane = lane2
+    else:
+        right_lane = lane1
+        left_lane = lane2
+
+    return left_lane, right_lane
+
+
+def GetLaneFromMedian(cluster):
+
+    if cluster is None:
+        print "GetLaneFromMedian: cluster is empty"
+        return None
+
+    distances = cluster[:, 0]
+    distances = np.sort(distances)
+    angles = cluster[:, 1]
+    angles = np.sort(angles)
+    avg_angle = np.median(angles)
+    avg_distance = np.median(distances)
+
+    return np.array([avg_distance, avg_angle])
