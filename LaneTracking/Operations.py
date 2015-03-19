@@ -165,8 +165,11 @@ def DetermineLanes(cluster1, cluster2, old_left_lane, old_right_lane):
         # print "DetermineLanes: Both clusters are None"
         return old_left_lane, old_right_lane
 
-    lane1 = GetLaneFromMedian(cluster1)
-    lane2 = GetLaneFromMedian(cluster2)
+    # lane1 = GetLaneFromMedian(cluster1)
+    # lane2 = GetLaneFromMedian(cluster2)
+
+    lane1 = GetLaneFromStdDeviation(cluster1)
+    lane2 = GetLaneFromStdDeviation(cluster2)
 
     # Assume the right lane has a smaller angle than
     if areClusterAnglesTooClose(lane1, lane2):
@@ -193,26 +196,6 @@ def DetermineLanes(cluster1, cluster2, old_left_lane, old_right_lane):
             right_lane = lane1
             left_lane = lane2
 
-    # if lane1 is None:
-    #     if abs(lane2[1] - old_left_lane[1]) < abs(lane2[1] - old_right_lane):
-    #         # ASSUME LEFT LANE
-    #         return lane2, old_right_lane
-    #     else:
-    #         return old_left_lane, lane2
-    # if lane2 is None:
-    #     if abs(lane1[1] - old_left_lane[1]) < abs(lane1[1] - old_right_lane):
-    #         # ASSUME LEFT LANE
-    #         return lane1, old_right_lane
-    #     else:
-    #         return old_left_lane, lane1
-    #
-    # if lane1[1] < lane2[1]:
-    #     left_lane = lane1
-    #     right_lane = lane2
-    # else:
-    #     right_lane = lane1
-    #     left_lane = lane2
-
     return left_lane, right_lane
 
 
@@ -233,6 +216,58 @@ def GetLaneFromMedian(cluster):
     angles = np.sort(angles)
     avg_angle = np.median(angles)
     avg_distance = np.median(distances)
+
+    return np.array([avg_distance, avg_angle])
+
+
+def GetLaneFromStdDeviation(cluster):
+
+    if cluster is None:
+        print "GetLaneFromMedian: cluster is empty"
+        return None
+
+    cluster_removed_outliers = None
+
+    distances = cluster[:, 0]
+    distances = np.sort(distances)
+    angles = cluster[:, 1]
+    angles = np.sort(angles)
+
+    mean_distance = np.mean(distances)
+    mean_angle = np.mean(angles)
+
+    std_dev_distance = np.std(distances)
+    std_dev_angle = np.std(angles)
+
+    for rho, theta in cluster:
+        # Center Around MEAN
+        rho_centered = rho - mean_distance
+        theta_centered = theta - mean_angle
+        # Normalize axes
+        normalized_rho = rho_centered / std_dev_distance
+        normalized_theta = theta_centered / std_dev_angle
+        # Calculate Distance from mean
+        distance_from_mean = np.sqrt(np.power(normalized_rho, 2) + np.power(normalized_theta, 2))
+        if distance_from_mean < 1:
+            # Throw Away
+            if cluster_removed_outliers is None:
+                cluster_removed_outliers = np.array([rho, theta])
+            else:
+                np.append(cluster_removed_outliers, np.array([rho, theta]))
+
+    if cluster_removed_outliers is None:
+        # IN THIS CASE NO VALUES ARE WITHIN ONE STD DEVIATION!
+        # return None
+        print 'Aww'
+    elif np.ndim(cluster_removed_outliers) is 1:
+        distances = cluster_removed_outliers[0]
+        angles = cluster_removed_outliers[1]
+    else:
+        distances = cluster_removed_outliers[:, 0]
+        angles = cluster_removed_outliers[:, 1]
+
+    avg_angle = np.mean(angles)
+    avg_distance = np.mean(distances)
 
     return np.array([avg_distance, avg_angle])
 
