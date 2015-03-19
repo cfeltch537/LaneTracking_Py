@@ -162,7 +162,7 @@ def ClusterHoughPoints(lines):
 def DetermineLanes(cluster1, cluster2, old_left_lane, old_right_lane):
 
     if cluster1 is None and cluster2 is None:
-        print "DetermineLanes: Both clusters are None"
+        # print "DetermineLanes: Both clusters are None"
         return old_left_lane, old_right_lane
 
     lane1 = GetLaneFromMedian(cluster1)
@@ -217,7 +217,7 @@ def DetermineLanes(cluster1, cluster2, old_left_lane, old_right_lane):
 
 
 def areClusterAnglesTooClose(cluster_avg_1, cluster_avg_2):
-    MIN_DISTANCE = (10 * np.pi/180)  # 10 Degrees
+    MIN_DISTANCE = (15 * np.pi/180)  # 10 Degrees
     return abs(cluster_avg_1[1] - cluster_avg_2[1]) < MIN_DISTANCE
 
 
@@ -245,7 +245,7 @@ def GetCenterPointBetweenLanes(left_lane, right_lane, image):
 
     x_center = abs(x1 - x2)/2 + np.min([x1, x2])
 
-    return x_center
+    return x_center, x1, x2
 
 
 def GetInterceptX(lane, image):

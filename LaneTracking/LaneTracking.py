@@ -31,8 +31,8 @@ grayscaled_image = None
 
 LANE_MODE = 1
 
-left_lane_estimate = None
-right_lane_estimates = None
+left_lane = None
+right_lane = None
 
 
 def updateImage():
@@ -55,32 +55,43 @@ def updateImage():
 
     # HOUGH FILTER
     lines = Filtering.HoughFilter(removed_horizon_img, hough_thresh)
+    # all_lines_image = Draw.DrawHoughLinesOnImage(lines, rgb_image, (0, 0, 255))
 
     # SEPARATE STREETS, GET THE LINES ASSOCIATED WITH YOUR LANE ONLY, BY ANGLE
     street_lines = Operations.SeparateStreets(lines)
+    # lane_separated_image = Draw.DrawHoughLinesOnImage(street_lines, rgb_image, (0, 0, 255))
 
     # CLUSTER INTO LEFT AND RIGHT LANE (HOPEFULLY)
     cluster1, cluster2 = Operations.ClusterHoughPoints(street_lines)
 
     # FIND AND DRAW LINES ASSOCIATED WITH STREETS
     rgb_image = np.copy(cv2.cvtColor(grayscaled_image, cv2.COLOR_GRAY2BGR))
-    # all_lines_image = Draw.DrawHoughLinesOnImage(lines, rgb_image, (0, 0, 255))
-    # lane_separated_image = Draw.DrawHoughLinesOnImage(street_lines, rgb_image, (0, 0, 255))
     street_lines_image = Draw.DrawHoughLinesOnImage(cluster1, rgb_image, (255, 255, 0))
     street_lines_image = Draw.DrawHoughLinesOnImage(cluster2, street_lines_image, (255, 0, 255))
 
     # FIND AND DRAW LANES
-    global left_lane_estimate, right_lane_estimates
-    left_lane_estimate, right_lane_estimates = Operations.DetermineLanes(cluster1, cluster2, left_lane_estimate, right_lane_estimates)
+    global left_lane, right_lane
+    left_lane, right_lane = Operations.DetermineLanes(cluster1, cluster2, left_lane, right_lane)
     lanes_image = np.copy(rgb_image)
-    lanes_image = Draw.DrawLaneOnImage(left_lane_estimate, lanes_image, (255, 0, 0))
-    lanes_image = Draw.DrawLaneOnImage(right_lane_estimates, lanes_image, (255, 0, 255))
+    lanes_image = Draw.DrawLaneOnImage(left_lane, lanes_image, (255, 0, 0))
+    lanes_image = Draw.DrawLaneOnImage(right_lane, lanes_image, (255, 0, 255))
 
-    # DRAW CENTER LINE IMAGE FOR FRAME AND LANES
+    # DRAW CENTER LINE IMAGE FOR FRAME
     lanes_w_center_line = Draw.DrawCenterLine(lanes_image, np.shape(lanes_image)[1]/2, (0, 255, 0))
-    center_point_x = Operations.GetCenterPointBetweenLanes(left_lane_estimate, right_lane_estimates, lanes_w_center_line)
+
+    # GET AND DRAW CENTER LINE FOR LANE X INTERCEPTS
+    center_point_x, x_left, x_right = Operations.GetCenterPointBetweenLanes(left_lane, right_lane, lanes_w_center_line)
     lanes_w_center_line = Draw.DrawCenterLine(lanes_w_center_line, center_point_x, (255, 255, 0))
 
+    # DISPLAY % FROM LEFT AND RIGHT LANE ON IMAGE
+    image_width = np.shape(lanes_w_center_line)[1]
+    image_height = np.shape(lanes_w_center_line)[0]
+    percent_from_left = (image_width/2 - x_left) / (x_right - x_left)
+    percent_from_right = (image_width/2 - x_right) / (x_right - x_left)
+    left_text = 'Left Lane = ' + str(int(percent_from_left*100))
+    right_text = 'Left Lane = ' + str(int(percent_from_right*100))
+    cv2.putText(lanes_w_center_line, left_text, (0, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), thickness=2)
+    cv2.putText(lanes_w_center_line, right_text, (300, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), thickness=2)
 
     # SHOW HOUGH LINE IMAGES
     images = np.array([street_lines_image, lanes_w_center_line])
@@ -113,10 +124,10 @@ if __name__ == '__main__':
     cv2.createTrackbar(NAME_CANNY_UPPER, WINDOW_CANNY, cannyThresholdHigh_init, CANNY_THRESHOLD_MAX, onTrackbar)
     cv2.createTrackbar(NAME_CANNY_LOWER, WINDOW_CANNY, cannyThresholdLow_init, CANNY_THRESHOLD_MAX, onTrackbar)
     cv2.createTrackbar(NAME_HORIZON_SLIDER, WINDOW_CANNY, horizon_offset_origin, horizon_max, onTrackbar)
-    # Houghq
+    # Hough
     cv2.createTrackbar(NAME_HOUGH_THRESHOLD, WINDOW_HOUGH, hough_threshold, HOUGH_MAX_THRESHOLD, onTrackbar)
 
-    # Show the input_image, explicitely call trackbar
+    # Show the input_image, explicitly call trackbar
     onTrackbar(0)
 
     # writer = cv2.VideoWriter('res/Highway.avi', -1, 30, (1280, 720))
