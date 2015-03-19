@@ -29,7 +29,7 @@ def SeparateStreets(lines):
         theta_degrees = rho_theta[1] * 180 / np.pi
 
         # if isCloseToHorizontal(theta_degrees) or isCloseToVertical(theta_degrees):
-        if isMarkingsOfCurrentLane(theta_degrees) and not isCloseToVertical(theta_degrees):
+        if isMarkingsOfCurrentLane(theta_degrees):  # and not isCloseToVertical(theta_degrees)
             indices_for_removal = np.append(indices_for_removal, [i])
             # print 'Removed:' + str(theta_degrees)
 
@@ -70,11 +70,15 @@ def isCloseToVertical(theta_degrees):
 
 def RemoveAboveHorizon(binary_image, offset):
 
-    half_size = (np.shape(binary_image)[0]) / 2
-    binary_image[0:half_size + offset] = 0
-    # print 'Removed Horizon'
-    
-    return binary_image
+    half_height = (np.shape(binary_image)[0]) / 2
+    binary_image[0:half_height - offset] = 0
+    x1 = 0
+    x2 = np.shape(binary_image)[1]
+    y1 = half_height - offset
+    y2 = half_height - offset
+    points_of_line = np.array([x1, y1, x2, y2])
+
+    return binary_image, points_of_line
 
 
 def ConvertProbHoughPointsToHoughPoints(points):
@@ -155,28 +159,66 @@ def ClusterHoughPoints(lines):
     return A, B
 
 
-def DetermineLanes(cluster1, cluster2, left_lane, right_lane):
+def DetermineLanes(cluster1, cluster2, old_left_lane, old_right_lane):
 
     if cluster1 is None and cluster2 is None:
         print "DetermineLanes: Both clusters are None"
-        return None, None
+        return old_left_lane, old_right_lane
 
     lane1 = GetLaneFromMedian(cluster1)
     lane2 = GetLaneFromMedian(cluster2)
 
-    if lane1 is None:
-        return lane2, None
-    if lane2 is None:
-        return lane1, None
+    # Assume the right lane has a smaller angle than
+    if areClusterAnglesTooClose(lane1, lane2):
+        # The two clusters are very close, assume they are one cluster!
+        combined_clusters = np.vstack((cluster1, cluster2))
+        single_lane = GetLaneFromMedian(combined_clusters)
 
-    if lane1[1] < lane2[1]:
-        left_lane = lane1
-        right_lane = lane2
+        diff_from_old_left = abs(single_lane[1] - old_left_lane[1])
+        diff_from_old_right = abs(single_lane[1] - old_right_lane[1])
+
+        if diff_from_old_left < diff_from_old_right:
+            # Assume Cluster is the Left Lane
+            return single_lane, old_right_lane
+        else:
+            # Assume Cluster is the Right Lane
+            return old_left_lane, single_lane
     else:
-        right_lane = lane1
-        left_lane = lane2
+        if lane1[1] < lane2[1]:
+            # Assume lane1 is the right lane
+            left_lane = lane1
+            right_lane = lane2
+        else:
+            # Assume lane2 is the right lane
+            right_lane = lane1
+            left_lane = lane2
+
+    # if lane1 is None:
+    #     if abs(lane2[1] - old_left_lane[1]) < abs(lane2[1] - old_right_lane):
+    #         # ASSUME LEFT LANE
+    #         return lane2, old_right_lane
+    #     else:
+    #         return old_left_lane, lane2
+    # if lane2 is None:
+    #     if abs(lane1[1] - old_left_lane[1]) < abs(lane1[1] - old_right_lane):
+    #         # ASSUME LEFT LANE
+    #         return lane1, old_right_lane
+    #     else:
+    #         return old_left_lane, lane1
+    #
+    # if lane1[1] < lane2[1]:
+    #     left_lane = lane1
+    #     right_lane = lane2
+    # else:
+    #     right_lane = lane1
+    #     left_lane = lane2
 
     return left_lane, right_lane
+
+
+def areClusterAnglesTooClose(cluster_avg_1, cluster_avg_2):
+    MIN_DISTANCE = (10 * np.pi/180)  # 10 Degrees
+    return abs(cluster_avg_1[1] - cluster_avg_2[1]) < MIN_DISTANCE
 
 
 def GetLaneFromMedian(cluster):

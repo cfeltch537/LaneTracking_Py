@@ -77,3 +77,14 @@ def DrawLaneOnImage(lane, image, color):
         y2 = int(y0 - 1000 * a)
         cv2.line(hough_image, (x1, y1), (x2, y2), color, 3)
     return hough_image
+
+
+def ScaleAndStackImages(image_array, scale_factor):
+    stacked_images = None
+    for image in image_array:
+        scaled_image = cv2.resize(image, (0, 0), fx=scale_factor, fy=scale_factor)
+        if stacked_images is None:
+            stacked_images = scaled_image
+        else:
+            stacked_images = np.vstack((stacked_images, scaled_image))
+    return stacked_images
