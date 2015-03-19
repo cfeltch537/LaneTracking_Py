@@ -63,11 +63,15 @@ def updateImage():
 
     # CLUSTER INTO LEFT AND RIGHT LANE (HOPEFULLY)
     cluster1, cluster2 = Operations.ClusterHoughPoints(street_lines)
+    cluster11, cluster12 = Operations.ClusterHoughPoints(cluster1)
+    cluster21, cluster22 = Operations.ClusterHoughPoints(cluster2)
 
     # FIND AND DRAW LINES ASSOCIATED WITH STREETS
     rgb_image = np.copy(cv2.cvtColor(grayscaled_image, cv2.COLOR_GRAY2BGR))
-    street_lines_image = Draw.DrawHoughLinesOnImage(cluster1, rgb_image, (255, 255, 0))
-    street_lines_image = Draw.DrawHoughLinesOnImage(cluster2, street_lines_image, (255, 0, 255))
+    street_lines_image = Draw.DrawHoughLinesOnImage(cluster11, rgb_image, (255, 255, 0))
+    street_lines_image = Draw.DrawHoughLinesOnImage(cluster12, street_lines_image, (255, 0, 255))
+    street_lines_image = Draw.DrawHoughLinesOnImage(cluster21, street_lines_image, (255, 0, 0))
+    street_lines_image = Draw.DrawHoughLinesOnImage(cluster22, street_lines_image, (0, 0, 255))
 
     # FIND AND DRAW LANES
     global left_lane, right_lane
@@ -89,7 +93,7 @@ def updateImage():
     percent_from_left = (image_width/2 - x_left) / (x_right - x_left)
     percent_from_right = (image_width/2 - x_right) / (x_right - x_left)
     left_text = 'Left Lane = ' + str(int(percent_from_left*100))
-    right_text = 'Left Lane = ' + str(int(percent_from_right*100))
+    right_text = 'Right Lane = ' + str(int(percent_from_right*100))
     cv2.putText(lanes_w_center_line, left_text, (0, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), thickness=2)
     cv2.putText(lanes_w_center_line, right_text, (300, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), thickness=2)
 
