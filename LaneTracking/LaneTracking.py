@@ -50,7 +50,6 @@ def updateImage():
     # REMOVE ABOVE HORIZON
     removed_horizon_img, horizontal_line = Operations.RemoveAboveHorizon(canny_img, horizontal_thresh - horizon_offset_origin)
     removed_horizon_img_w_lines = np.copy(cv2.cvtColor(removed_horizon_img, cv2.COLOR_GRAY2BGR))
-    # horizontal_line = np.array([1, 20, 20, 40])
     cv2.line(removed_horizon_img_w_lines, (horizontal_line[0], horizontal_line[1]), (horizontal_line[2], horizontal_line[3]), (0,0,255), 2)
     cv2.imshow(WINDOW_CANNY, removed_horizon_img_w_lines)
 
@@ -63,23 +62,29 @@ def updateImage():
     # CLUSTER INTO LEFT AND RIGHT LANE (HOPEFULLY)
     cluster1, cluster2 = Operations.ClusterHoughPoints(street_lines)
 
-    # PLOT HOUGH LINES AND STREETS
+    # FIND AND DRAW LINES ASSOCIATED WITH STREETS
     rgb_image = np.copy(cv2.cvtColor(grayscaled_image, cv2.COLOR_GRAY2BGR))
-    all_lines_image = Draw.DrawHoughLinesOnImage(lines, rgb_image, (0, 0, 255))
-    lane_seperated_image = Draw.DrawHoughLinesOnImage(street_lines, rgb_image, (0, 0, 255))
+    # all_lines_image = Draw.DrawHoughLinesOnImage(lines, rgb_image, (0, 0, 255))
+    # lane_separated_image = Draw.DrawHoughLinesOnImage(street_lines, rgb_image, (0, 0, 255))
     street_lines_image = Draw.DrawHoughLinesOnImage(cluster1, rgb_image, (255, 255, 0))
     street_lines_image = Draw.DrawHoughLinesOnImage(cluster2, street_lines_image, (255, 0, 255))
 
-    # ESTIMATE AND DRAW LANES
+    # FIND AND DRAW LANES
     global left_lane_estimate, right_lane_estimates
     left_lane_estimate, right_lane_estimates = Operations.DetermineLanes(cluster1, cluster2, left_lane_estimate, right_lane_estimates)
     lanes_image = np.copy(rgb_image)
-    lanes_image = Draw.DrawLaneOnImage(left_lane_estimate, lanes_image, (125, 125, 0))
-    lanes_image = Draw.DrawLaneOnImage(right_lane_estimates, lanes_image, (125, 0, 125))
+    lanes_image = Draw.DrawLaneOnImage(left_lane_estimate, lanes_image, (255, 0, 0))
+    lanes_image = Draw.DrawLaneOnImage(right_lane_estimates, lanes_image, (255, 0, 255))
+
+    # DRAW CENTER LINE IMAGE FOR FRAME AND LANES
+    lanes_w_center_line = Draw.DrawCenterLine(lanes_image, np.shape(lanes_image)[1]/2, (0, 255, 0))
+    center_point_x = Operations.GetCenterPointBetweenLanes(left_lane_estimate, right_lane_estimates, lanes_w_center_line)
+    lanes_w_center_line = Draw.DrawCenterLine(lanes_w_center_line, center_point_x, (255, 255, 0))
+
 
     # SHOW HOUGH LINE IMAGES
-    images = np.array([lane_seperated_image, street_lines_image, lanes_image])
-    smaller_images = Draw.ScaleAndStackImages(images, 0.5)
+    images = np.array([street_lines_image, lanes_w_center_line])
+    smaller_images = Draw.ScaleAndStackImages(images, 1.0)
     cv2.imshow(WINDOW_HOUGH, smaller_images)
 
 
@@ -132,7 +137,6 @@ if __name__ == '__main__':
             while True:
                 if cv2.waitKey(20) & 0xFF == ord('2'):
                     break
-
 
     cap.release()
 

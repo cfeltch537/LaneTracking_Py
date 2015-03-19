@@ -79,6 +79,19 @@ def DrawLaneOnImage(lane, image, color):
     return hough_image
 
 
+def DrawCenterLine(image, x, color):
+
+    if color is None:
+        return image
+    ret_img = np.copy(image)
+    x1 = int(x)
+    y1 = np.shape(image)[0]
+    x2 = int(x)
+    y2 = np.shape(image)[0] - 50
+    cv2.line(ret_img, (x1, y1), (x2, y2), color, 3)
+    return ret_img
+
+
 def ScaleAndStackImages(image_array, scale_factor):
     stacked_images = None
     for image in image_array:

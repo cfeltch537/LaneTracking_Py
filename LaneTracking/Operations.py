@@ -235,3 +235,29 @@ def GetLaneFromMedian(cluster):
     avg_distance = np.median(distances)
 
     return np.array([avg_distance, avg_angle])
+
+
+def GetCenterPointBetweenLanes(left_lane, right_lane, image):
+    center_x = None
+
+    x1 = GetInterceptX(left_lane, image)
+    x2 = GetInterceptX(right_lane, image)
+
+    x_center = abs(x1 - x2)/2 + np.min([x1, x2])
+
+    return x_center
+
+
+def GetInterceptX(lane, image):
+
+    # Find x intercepts of each lane, then return center point
+    theta = lane[1]
+    rho = lane[0]
+    phi = 90*np.pi/180 + theta
+    M = np.sin(phi)/np.cos(phi)
+    x0 = rho*np.cos(theta)
+    y0 = rho*np.sin(theta)
+    y1 = np.shape(image)[1]/2
+    x1 = (M*x0-y0+y1)/M
+
+    return x1
