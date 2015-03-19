@@ -31,9 +31,10 @@ grayscaled_image = None
 
 LANE_MODE = 1
 
-left_lane = None
-right_lane = None
-
+left_outer = None
+left_inner = None
+right_inner = None
+right_outer = None
 
 def updateImage():
     global grayscaled_image
@@ -64,7 +65,11 @@ def updateImage():
     # CLUSTER INTO LEFT AND RIGHT LANE (HOPEFULLY)
     cluster1, cluster2 = Operations.ClusterHoughPoints(street_lines)
     cluster11, cluster12 = Operations.ClusterHoughPoints(cluster1)
+    # lane11 = Operations.GetLaneFromStdDeviation(cluster11)
+    # lane12 = Operations.GetLaneFromStdDeviation(cluster12)
     cluster21, cluster22 = Operations.ClusterHoughPoints(cluster2)
+    # lane21 = Operations.GetLaneFromStdDeviation(cluster21)
+    # lane22 = Operations.GetLaneFromStdDeviation(cluster22)
 
     # FIND AND DRAW LINES ASSOCIATED WITH STREETS
     rgb_image = np.copy(cv2.cvtColor(grayscaled_image, cv2.COLOR_GRAY2BGR))
@@ -74,20 +79,26 @@ def updateImage():
     street_lines_image = Draw.DrawHoughLinesOnImage(cluster22, street_lines_image, (0, 0, 255))
 
     # FIND AND DRAW LANES
-    global left_lane, right_lane
-    left_lane, right_lane = Operations.DetermineLanes(cluster1, cluster2, left_lane, right_lane)
+    global left_outer, left_inner, right_inner, right_outer
+    left_outer, left_inner, right_inner, right_outer = Operations.\
+        DetermineLanes(cluster1, cluster2, left_outer, left_inner, right_inner, right_outer)
     lanes_image = np.copy(rgb_image)
-    lanes_image = Draw.DrawLaneOnImage(left_lane, lanes_image, (255, 0, 0))
-    lanes_image = Draw.DrawLaneOnImage(right_lane, lanes_image, (255, 0, 255))
+    # lanes_image = Draw.DrawLaneOnImage(left_lane, lanes_image, (255, 0, 0))
+    # lanes_image = Draw.DrawLaneOnImage(right_lane, lanes_image, (255, 0, 255))
+
+    lanes_image = Draw.DrawLaneOnImage(left_outer, lanes_image, (255, 0, 0))
+    lanes_image = Draw.DrawLaneOnImage(left_inner, lanes_image, (255, 255, 0))
+    lanes_image = Draw.DrawLaneOnImage(right_outer, lanes_image, (0, 255, 0))
+    lanes_image = Draw.DrawLaneOnImage(right_inner, lanes_image, (0, 0, 255))
 
     # DRAW CENTER LINE IMAGE FOR FRAME
     lanes_w_center_line = Draw.DrawCenterLine(lanes_image, np.shape(lanes_image)[1]/2, (0, 255, 0))
 
     # GET AND DRAW CENTER LINE FOR LANE X INTERCEPTS
-    center_point_x, x_left, x_right = Operations.GetCenterPointBetweenLanes(left_lane, right_lane, lanes_w_center_line)
+    center_point_x, x_left, x_right = Operations.GetCenterPointBetweenLanes(left_inner, right_inner, lanes_w_center_line)
     lanes_w_center_line = Draw.DrawCenterLine(lanes_w_center_line, center_point_x, (255, 255, 0))
 
-    # DISPLAY % FROM LEFT AND RIGHT LANE ON IMAGE
+    # DISPLAY PERCENT FROM LEFT AND RIGHT LANE ON IMAGE
     image_width = np.shape(lanes_w_center_line)[1]
     image_height = np.shape(lanes_w_center_line)[0]
     percent_from_left = (image_width/2 - x_left) / (x_right - x_left)

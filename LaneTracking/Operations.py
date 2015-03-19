@@ -159,23 +159,32 @@ def ClusterHoughPoints(lines):
     return A, B
 
 
-def DetermineLanes(cluster1, cluster2, old_left_lane, old_right_lane):
+def DetermineLanesFourClusters(cluster11, cluster12, cluster21, cluster22):
+    if None in (cluster11, cluster12, cluster21, cluster22):
+        print "DetermineLanesFourClusters has None in Clusters"
+        return None
 
+
+def DetermineLanes(cluster1, cluster2, old_left_outer, old_left_inner, old_right_inner, old_right_outer):
+
+    # If No Clusters, Return Old Lines
     if cluster1 is None and cluster2 is None:
-        # print "DetermineLanes: Both clusters are None"
-        return old_left_lane, old_right_lane
+        return old_left_outer, old_left_inner, old_right_inner, old_right_outer
 
     # lane1 = GetLaneFromMedian(cluster1)
     # lane2 = GetLaneFromMedian(cluster2)
 
+    # Remove outliers from data sets (> 1 STD Dev from Mean)
     lane1 = GetLaneFromStdDeviation(cluster1)
     lane2 = GetLaneFromStdDeviation(cluster2)
 
     # Assume the right lane has a smaller angle than
+
+    # The two clusters are very close, assume they are one cluster!
     if areClusterAnglesTooClose(lane1, lane2):
-        # The two clusters are very close, assume they are one cluster!
-        combined_clusters = np.vstack((cluster1, cluster2))
-        single_lane = GetLaneFromMedian(combined_clusters)
+
+        # combined_clusters = np.vstack((cluster1, cluster2))
+        # single_lane = GetLaneFromMedian(combined_clusters)
 
         diff_from_old_left = abs(single_lane[1] - old_left_lane[1])
         diff_from_old_right = abs(single_lane[1] - old_right_lane[1])
@@ -186,18 +195,53 @@ def DetermineLanes(cluster1, cluster2, old_left_lane, old_right_lane):
         else:
             # Assume Cluster is the Right Lane
             return old_left_lane, single_lane
+
+    # The two clusters aren't very close, assume they are each a lane!
     else:
+        cluster11, cluster12 = ClusterHoughPoints(cluster1)
+        cluster21, cluster22 = ClusterHoughPoints(cluster2)
+        lane11 = GetLaneFromStdDeviation(cluster11)
+        lane12 = GetLaneFromStdDeviation(cluster12)
+        lane21 = GetLaneFromStdDeviation(cluster21)
+        lane22 = GetLaneFromStdDeviation(cluster22)
+
+        # Run K-Means of 2 on each cluster, to get inner and outer lane
         if lane1[1] < lane2[1]:
             # Assume lane1 is the right lane
+            left_outer, left_inner, right_inner, right_outer = SortLanes(lane11, lane12, lane21, lane22)
             left_lane = lane1
             right_lane = lane2
         else:
             # Assume lane2 is the right lane
+            left_outer, left_inner, right_inner, right_outer = SortLanes(lane21, lane22, lane11, lane12)
             right_lane = lane1
             left_lane = lane2
 
-    return left_lane, right_lane
+    # return left_lane, right_lane
+        return left_outer, left_inner, right_inner, right_outer
 
+
+def SortLanes(laneL1, laneL2, laneR1, laneR2):
+    # 11 and 12, 21 and 22, are lanes from two seperate clusters
+    # Need to classify them into left_outer, left_inner, right_inner, right_outer
+
+    # The Left Inner lanes are the most vertical ones; i.e. theta closest to pi
+    if laneL1[1] > laneL2[1]:
+        left_outer = laneL1
+        left_inner = laneL2
+    else:
+        left_outer = laneL2
+        left_inner = laneL1
+
+    # The Right Inner lanes are the most vertical ones; i.e. theta closest to 0
+    if laneL1[1] > laneL2[1]:
+        right_outer = laneR1
+        right_inner = laneR2
+    else:
+        right_outer = laneR2
+        right_inner = laneR1
+
+    return left_outer, left_inner, right_inner, right_outer
 
 def areClusterAnglesTooClose(cluster_avg_1, cluster_avg_2):
     MIN_DISTANCE = (15 * np.pi/180)  # 10 Degrees
@@ -224,6 +268,36 @@ def GetLaneFromStdDeviation(cluster):
 
     if cluster is None:
         print "GetLaneFromMedian: cluster is empty"
+        return None
+
+    cluster_removed_outliers = RemoveOutliers(cluster)
+
+    if cluster_removed_outliers is None:
+        # IN THIS CASE NO VALUES ARE WITHIN ONE STD DEVIATION!
+        if np.ndim(cluster) is 1:
+            distances = cluster[0]
+            angles = cluster[1]
+        else:
+            distances = cluster[:, 0]
+            angles = cluster[:, 1]
+        # return None
+        # print 'Aww'
+    elif np.ndim(cluster_removed_outliers) is 1:
+        distances = cluster_removed_outliers[0]
+        angles = cluster_removed_outliers[1]
+    else:
+        distances = cluster_removed_outliers[:, 0]
+        angles = cluster_removed_outliers[:, 1]
+
+    avg_angle = np.mean(angles)
+    avg_distance = np.mean(distances)
+
+    return np.array([avg_distance, avg_angle])
+
+
+def RemoveOutliers(cluster):
+    if cluster is None:
+        print "RemoveOutliers: cluster is empty"
         return None
 
     cluster_removed_outliers = None
@@ -255,21 +329,7 @@ def GetLaneFromStdDeviation(cluster):
             else:
                 np.append(cluster_removed_outliers, np.array([rho, theta]))
 
-    if cluster_removed_outliers is None:
-        # IN THIS CASE NO VALUES ARE WITHIN ONE STD DEVIATION!
-        # return None
-        print 'Aww'
-    elif np.ndim(cluster_removed_outliers) is 1:
-        distances = cluster_removed_outliers[0]
-        angles = cluster_removed_outliers[1]
-    else:
-        distances = cluster_removed_outliers[:, 0]
-        angles = cluster_removed_outliers[:, 1]
-
-    avg_angle = np.mean(angles)
-    avg_distance = np.mean(distances)
-
-    return np.array([avg_distance, avg_angle])
+    return cluster_removed_outliers
 
 
 def GetCenterPointBetweenLanes(left_lane, right_lane, image):
