@@ -168,56 +168,104 @@ def DetermineLanesFourClusters(cluster11, cluster12, cluster21, cluster22):
 def DetermineLanes(cluster1, cluster2, old_left_outer, old_left_inner, old_right_inner, old_right_outer):
 
     # If No Clusters, Return Old Lines
-    if cluster1 is None and cluster2 is None:
+    if cluster1 is None or cluster2 is None:
         return old_left_outer, old_left_inner, old_right_inner, old_right_outer
 
-    # lane1 = GetLaneFromMedian(cluster1)
-    # lane2 = GetLaneFromMedian(cluster2)
+    # left_outer = None
+    # left_inner = None
+    # right_inner = None
+    # right_inner = None
 
     # Remove outliers from data sets (> 1 STD Dev from Mean)
     lane1 = GetLaneFromStdDeviation(cluster1)
     lane2 = GetLaneFromStdDeviation(cluster2)
 
-    # Assume the right lane has a smaller angle than
-
+    # BOTH CLUSTERS CORRESPOND TO THE SAME LANE, OR CANT BE BROKEN DOWN MORE
     # The two clusters are very close, assume they are one cluster!
-    if areClusterAnglesTooClose(lane1, lane2):
+    # OR if both clusters cant be broken down into two more clusters
+    if areClusterAnglesTooClose(lane1, lane2) or \
+            (np.shape(cluster1)[0] < 3 and np.shape(cluster1)[0] < 3):
 
-        # combined_clusters = np.vstack((cluster1, cluster2))
-        # single_lane = GetLaneFromMedian(combined_clusters)
+        left_outer, left_inner, right_inner, right_outer = \
+            MatchToClosestOldLane([lane1, lane2], old_left_outer, old_left_inner, old_right_inner, old_right_outer)
 
-        diff_from_old_left = abs(single_lane[1] - old_left_lane[1])
-        diff_from_old_right = abs(single_lane[1] - old_right_lane[1])
-
-        if diff_from_old_left < diff_from_old_right:
-            # Assume Cluster is the Left Lane
-            return single_lane, old_right_lane
-        else:
-            # Assume Cluster is the Right Lane
-            return old_left_lane, single_lane
-
+    # EACH CLUSTERS CORRESPOND TO A DIFFERENT LANE, AND CAN BE BROKEN INTO INNER/OUTER
     # The two clusters aren't very close, assume they are each a lane!
     else:
-        cluster11, cluster12 = ClusterHoughPoints(cluster1)
-        cluster21, cluster22 = ClusterHoughPoints(cluster2)
-        lane11 = GetLaneFromStdDeviation(cluster11)
-        lane12 = GetLaneFromStdDeviation(cluster12)
-        lane21 = GetLaneFromStdDeviation(cluster21)
-        lane22 = GetLaneFromStdDeviation(cluster22)
 
-        # Run K-Means of 2 on each cluster, to get inner and outer lane
-        if lane1[1] < lane2[1]:
-            # Assume lane1 is the right lane
-            left_outer, left_inner, right_inner, right_outer = SortLanes(lane11, lane12, lane21, lane22)
-            left_lane = lane1
-            right_lane = lane2
+        # CAN EACH CLUSTER BE BROKEN INTO TWO MORE CLUSTERS?
+        # If cluster has more that 2 elements, assume an inner and outer lane can be created
+        # TODO This could be done better.
+        # if np.shape(cluster1)[0] < 3 or np.shape(cluster1)[0] < 3:
+        if np.shape(cluster1)[0] < 2:
+            lane1 = GetLaneFromStdDeviation(cluster1)
+            cluster21, cluster22 = ClusterHoughPoints(cluster2)
+            lane21 = GetLaneFromStdDeviation(cluster21)
+            lane22 = GetLaneFromStdDeviation(cluster22)
+
+            left_outer, left_inner, right_inner, right_outer = \
+                MatchToClosestOldLane([lane1, lane21, lane22], old_left_outer, old_left_inner, old_right_inner, old_right_outer)
+
+        elif np.shape(cluster2)[0] < 2:
+            # NOPE. Match them to past lines
+            # TODO This means a 4 cluster case is needed before any tracking can take place :/
+            lane2 = GetLaneFromStdDeviation(cluster2)
+            cluster11, cluster12 = ClusterHoughPoints(cluster1)
+            lane11 = GetLaneFromStdDeviation(cluster11)
+            lane12 = GetLaneFromStdDeviation(cluster12)
+
+            left_outer, left_inner, right_inner, right_outer = \
+                MatchToClosestOldLane([lane2, lane11, lane12], old_left_outer, old_left_inner, old_right_inner, old_right_outer)
+
         else:
-            # Assume lane2 is the right lane
-            left_outer, left_inner, right_inner, right_outer = SortLanes(lane21, lane22, lane11, lane12)
-            right_lane = lane1
-            left_lane = lane2
+            # We can get 4 cluster, Assume the are all 4 inner and outer lines
+            cluster11, cluster12 = ClusterHoughPoints(cluster1)
+            cluster21, cluster22 = ClusterHoughPoints(cluster2)
+            lane11 = GetLaneFromStdDeviation(cluster11)
+            lane12 = GetLaneFromStdDeviation(cluster12)
+            lane21 = GetLaneFromStdDeviation(cluster21)
+            lane22 = GetLaneFromStdDeviation(cluster22)
+
+            if None in (lane11, lane12, lane21, lane22):
+                print "Aww None in DetermineLanes"
+
+            # Run K-Means of 2 on each cluster, to get inner and outer lane
+            if lane1[1] < lane2[1]:
+                # Assume lane1 is the right lane
+                left_outer, left_inner, right_inner, right_outer = SortLanes(lane11, lane12, lane21, lane22)
+                # left_lane = lane1
+                # right_lane = lane2
+            else:
+                # Assume lane2 is the right lane
+                left_outer, left_inner, right_inner, right_outer = SortLanes(lane21, lane22, lane11, lane12)
+                # right_lane = lane1
+                # left_lane = lane2
 
     # return left_lane, right_lane
+    return left_outer, left_inner, right_inner, right_outer
+
+
+def MatchToClosestOldLane(lanes_to_match, old_left_outer, old_left_inner, old_right_inner, old_right_outer):
+    left_outer = old_left_outer
+    left_inner = old_left_inner
+    right_inner = old_right_inner
+    right_outer = old_right_outer
+
+    for lane in lanes_to_match:
+
+        old_angle_array = np.array([left_outer[1], left_inner[1], right_inner[1], right_outer[1]])
+        old_angle_array_norm_by_lane = old_angle_array - lane[1]
+        min_dist_lane = np.argmin(old_angle_array_norm_by_lane)
+
+        if min_dist_lane is 0:
+            left_outer = lane
+        elif min_dist_lane is 1:
+            left_inner = lane
+        elif min_dist_lane is 2:
+            right_inner = lane
+        elif min_dist_lane is 3:
+            right_outer = lane
+
         return left_outer, left_inner, right_inner, right_outer
 
 
@@ -226,6 +274,8 @@ def SortLanes(laneL1, laneL2, laneR1, laneR2):
     # Need to classify them into left_outer, left_inner, right_inner, right_outer
 
     # The Left Inner lanes are the most vertical ones; i.e. theta closest to pi
+    if None in (laneL1, laneL2, laneR1, laneR2):
+        print "Oops None SortLanes"
     if laneL1[1] > laneL2[1]:
         left_outer = laneL1
         left_inner = laneL2
@@ -234,7 +284,7 @@ def SortLanes(laneL1, laneL2, laneR1, laneR2):
         left_inner = laneL1
 
     # The Right Inner lanes are the most vertical ones; i.e. theta closest to 0
-    if laneL1[1] > laneL2[1]:
+    if laneR1[1] > laneR2[1]:
         right_outer = laneR1
         right_inner = laneR2
     else:
@@ -242,6 +292,7 @@ def SortLanes(laneL1, laneL2, laneR1, laneR2):
         right_inner = laneR1
 
     return left_outer, left_inner, right_inner, right_outer
+
 
 def areClusterAnglesTooClose(cluster_avg_1, cluster_avg_2):
     MIN_DISTANCE = (15 * np.pi/180)  # 10 Degrees

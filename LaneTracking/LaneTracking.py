@@ -156,7 +156,7 @@ if __name__ == '__main__':
         updateImage()
 
         # cv2.imshow('frame', gray)
-        if cv2.waitKey(50) & 0xFF == ord('q'):
+        if cv2.waitKey(25) & 0xFF == ord('q'):
             break
 
         if cv2.waitKey(5) & 0xFF == ord('1'):
