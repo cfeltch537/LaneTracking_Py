@@ -9,16 +9,19 @@ import DrawingOp as Draw
 
 # Ignoring Segments
 horizon_offset_origin = 100
+horizon_starting_position = 100
 horizon_max = 200
 NAME_HORIZON_SLIDER = "H Off"
 
 # Canny Filter
-cannyThresholdLow_init = 70
+cannyThresholdLow_init = 50
 cannyThresholdHigh_init = 130
 CANNY_THRESHOLD_MAX = 200
 WINDOW_CANNY = "Canny Filter"
 NAME_CANNY_UPPER = 'Canny U'
 NAME_CANNY_LOWER = 'Canny L'
+NAME_FRAME = "Frame"
+NAME_SLOW = "Slow"
 
 # Hough Filter
 hough_threshold = 50
@@ -26,15 +29,21 @@ HOUGH_MAX_THRESHOLD = 100
 NAME_HOUGH_THRESHOLD = 'Hough T'
 WINDOW_HOUGH = "Hough Filter"
 
-input_image = None
-grayscaled_image = None
-
 LANE_MODE = 1
 
+# Booleans
+isFrameRateUpdated = False
+isPaused = False
+
+# Globals
+# input_image = None
+grayscaled_image = None
 left_outer = None
 left_inner = None
 right_inner = None
 right_outer = None
+frame_rate_multiplier = 1
+
 
 def updateImage():
     global grayscaled_image
@@ -49,9 +58,11 @@ def updateImage():
     canny_img = Filtering.CannyFilter(grayscaled_image, canny_thresh_low, canny_thresh_high)
 
     # REMOVE ABOVE HORIZON
-    removed_horizon_img, horizontal_line = Operations.RemoveAboveHorizon(canny_img, horizontal_thresh - horizon_offset_origin)
+    removed_horizon_img, horizontal_line = Operations.RemoveAboveHorizon(canny_img,
+                                                                         horizontal_thresh - horizon_offset_origin)
     removed_horizon_img_w_lines = np.copy(cv2.cvtColor(removed_horizon_img, cv2.COLOR_GRAY2BGR))
-    cv2.line(removed_horizon_img_w_lines, (horizontal_line[0], horizontal_line[1]), (horizontal_line[2], horizontal_line[3]), (0,0,255), 2)
+    cv2.line(removed_horizon_img_w_lines, (horizontal_line[0], horizontal_line[1]),
+             (horizontal_line[2], horizontal_line[3]), (0, 0, 255), 2)
     cv2.imshow(WINDOW_CANNY, removed_horizon_img_w_lines)
 
     # HOUGH FILTER
@@ -80,7 +91,7 @@ def updateImage():
 
     # FIND AND DRAW LANES
     global left_outer, left_inner, right_inner, right_outer
-    left_outer, left_inner, right_inner, right_outer = Operations.\
+    left_outer, left_inner, right_inner, right_outer = Operations. \
         DetermineLanes(cluster1, cluster2, left_outer, left_inner, right_inner, right_outer)
     lanes_image = np.copy(rgb_image)
     # lanes_image = Draw.DrawLaneOnImage(left_lane, lanes_image, (255, 0, 0))
@@ -92,30 +103,57 @@ def updateImage():
     lanes_image = Draw.DrawLaneOnImage(right_inner, lanes_image, (0, 0, 255))
 
     # DRAW CENTER LINE IMAGE FOR FRAME
-    lanes_w_center_line = Draw.DrawCenterLine(lanes_image, np.shape(lanes_image)[1]/2, (0, 255, 0))
+    lanes_w_center_line = Draw.DrawCenterLine(lanes_image, np.shape(lanes_image)[1] / 2, (0, 255, 0))
 
     # GET AND DRAW CENTER LINE FOR LANE X INTERCEPTS
-    center_point_x, x_left, x_right = Operations.GetCenterPointBetweenLanes(left_inner, right_inner, lanes_w_center_line)
+    center_point_x, x_left, x_right = Operations.GetCenterPointBetweenLanes(left_inner, right_inner,
+                                                                            lanes_w_center_line)
     lanes_w_center_line = Draw.DrawCenterLine(lanes_w_center_line, center_point_x, (255, 255, 0))
 
     # DISPLAY PERCENT FROM LEFT AND RIGHT LANE ON IMAGE
     image_width = np.shape(lanes_w_center_line)[1]
     image_height = np.shape(lanes_w_center_line)[0]
-    percent_from_left = (image_width/2 - x_left) / (x_right - x_left)
-    percent_from_right = (image_width/2 - x_right) / (x_right - x_left)
-    left_text = 'Left Lane = ' + str(int(percent_from_left*100))
-    right_text = 'Right Lane = ' + str(int(percent_from_right*100))
-    cv2.putText(lanes_w_center_line, left_text, (0, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), thickness=2)
-    cv2.putText(lanes_w_center_line, right_text, (300, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), thickness=2)
+    percent_from_left = (image_width / 2 - x_left) / (x_right - x_left)
+    percent_from_right = (image_width / 2 - x_right) / (x_right - x_left)
+    left_text = 'Left Lane = ' + str(int(percent_from_left * 100))
+    right_text = 'Right Lane = ' + str(int(percent_from_right * 100))
+    cv2.putText(lanes_w_center_line, left_text, (0, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255),
+                thickness=2)
+    cv2.putText(lanes_w_center_line, right_text, (300, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255),
+                thickness=2)
 
     # SHOW HOUGH LINE IMAGES
     images = np.array([street_lines_image, lanes_w_center_line])
-    smaller_images = Draw.ScaleAndStackImages(images, 1.0)
+    smaller_images = Draw.ScaleAndStackImages(images, 0.5)
     cv2.imshow(WINDOW_HOUGH, smaller_images)
 
 
 # define a trackbar callback
 def onTrackbar(x):
+    updateImage()
+
+
+# define a trackbar callback to specify change in frame to start from
+def onFrameTrackbar(x):
+    global isFrameRateUpdated
+    isFrameRateUpdated = True
+
+
+# define a trackbar callback to specify change in frame display rate
+def onSlowTrackbar(x):
+    global frame_rate_multiplier, isPaused
+    frame_rate_multiplier = cv2.getTrackbarPos(NAME_SLOW, WINDOW_CANNY)
+    if x is 0:
+        isPaused = True
+    else:
+        isPaused = False
+
+
+# Pull next frame from capture, update slider and update global operating image
+def getNextFrame(cap):
+    global grayscaled_image
+    ret, frame = cap.read()
+    grayscaled_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     updateImage()
 
 
@@ -138,7 +176,9 @@ if __name__ == '__main__':
     # Canny
     cv2.createTrackbar(NAME_CANNY_UPPER, WINDOW_CANNY, cannyThresholdHigh_init, CANNY_THRESHOLD_MAX, onTrackbar)
     cv2.createTrackbar(NAME_CANNY_LOWER, WINDOW_CANNY, cannyThresholdLow_init, CANNY_THRESHOLD_MAX, onTrackbar)
-    cv2.createTrackbar(NAME_HORIZON_SLIDER, WINDOW_CANNY, horizon_offset_origin, horizon_max, onTrackbar)
+    cv2.createTrackbar(NAME_HORIZON_SLIDER, WINDOW_CANNY, horizon_starting_position, horizon_max, onTrackbar)
+    cv2.createTrackbar(NAME_SLOW, WINDOW_CANNY, 1, 10, onSlowTrackbar)
+
     # Hough
     cv2.createTrackbar(NAME_HOUGH_THRESHOLD, WINDOW_HOUGH, hough_threshold, HOUGH_MAX_THRESHOLD, onTrackbar)
 
@@ -148,21 +188,45 @@ if __name__ == '__main__':
     # writer = cv2.VideoWriter('res/Highway.avi', -1, 30, (1280, 720))
 
     cap = cv2.VideoCapture()
-    cap.open('res/road.avi')
+    cap.open('res/Highway.avi')
+    num_frames = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
+    cv2.createTrackbar(NAME_FRAME, WINDOW_CANNY, 0, int(num_frames), onFrameTrackbar)
     while cap.isOpened():
-        ret, frame = cap.read()
 
-        grayscaled_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        updateImage()
+        # If Slider has moved, then update the current frame
+        if isFrameRateUpdated:
+            slider_frame = cv2.getTrackbarPos(NAME_FRAME, WINDOW_CANNY)
+            cap.set(cv2.cv.CV_CAP_PROP_POS_FRAMES, slider_frame)
+            isFrameRateUpdated = False
 
-        # cv2.imshow('frame', gray)
-        if cv2.waitKey(25) & 0xFF == ord('q'):
+        # Calculate current frame, fps
+        current_frame = cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES)
+        frame_rate = cap.get(cv2.cv.CV_CAP_PROP_FPS)
+        wait_between_frames = int(1000 * frame_rate_multiplier / frame_rate)
+
+        wait_for_key = cv2.waitKey(wait_between_frames)
+
+        if isPaused:
+            # NEXT FRAME
+            if wait_for_key == ord('e'):
+                getNextFrame(cap)
+            # LAST FRAME
+            elif wait_for_key == ord('w'):
+                if current_frame > 1:
+                    cap.set(cv2.cv.CV_CAP_PROP_POS_FRAMES, current_frame-2)
+                getNextFrame(cap)
+        elif not isPaused:
+            getNextFrame(cap)
+
+        # EXIT - on 'q' or last frame
+        if wait_for_key == ord('q') or current_frame >= num_frames:
             break
-
-        if cv2.waitKey(5) & 0xFF == ord('1'):
-            while True:
-                if cv2.waitKey(20) & 0xFF == ord('2'):
-                    break
+        # PAUSE
+        elif wait_for_key == ord('1'):
+            isPaused = True
+        # UN-PAUSE
+        elif wait_for_key == ord('2'):
+            isPaused = False
 
     cap.release()
 

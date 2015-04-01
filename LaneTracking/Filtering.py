@@ -13,9 +13,10 @@ def CannyFilter(img, thresh_low, thresh_high):
         print 'A Threshold is None'
 
     # BLUR THEN CANNY
-    blurred_image = cv2.blur(image, (3, 3))
+    blurred_image = cv2.GaussianBlur(image, (3, 3), 0)
     # blurred_image = image
     canny_img = cv2.Canny(blurred_image, thresh_low, thresh_high, 3)
+
     return canny_img
 
 
