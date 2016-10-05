@@ -68,7 +68,7 @@ def isCloseToVertical(theta_degrees):
         return False
 
 
-def RemoveAboveHorizon(binary_image, offset):
+def RemoveAboveHorizontal(binary_image, offset):
 
     half_height = (np.shape(binary_image)[0]) / 2
     binary_image[0:half_height - offset] = 0
@@ -76,6 +76,19 @@ def RemoveAboveHorizon(binary_image, offset):
     x2 = np.shape(binary_image)[1]
     y1 = half_height - offset
     y2 = half_height - offset
+    points_of_line = np.array([x1, y1, x2, y2])
+
+    return binary_image, points_of_line
+
+
+def RemoveBelowHorizontal(binary_image, offset):
+
+    height = (np.shape(binary_image)[0])
+    binary_image[height - offset:] = 0
+    x1 = 0
+    x2 = np.shape(binary_image)[1]
+    y1 = height - offset
+    y2 = height - offset
     points_of_line = np.array([x1, y1, x2, y2])
 
     return binary_image, points_of_line
@@ -184,7 +197,7 @@ def DetermineLanes(cluster1, cluster2, old_left_outer, old_left_inner, old_right
     # The two clusters are very close, assume they are one cluster!
     # OR if both clusters cant be broken down into two more clusters
     if areClusterAnglesTooClose(lane1, lane2) or \
-            (np.shape(cluster1)[0] < 3 and np.shape(cluster1)[0] < 3):
+            (np.shape(cluster1)[0] < 2 and np.shape(cluster1)[0] < 2):
 
         left_outer, left_inner, right_inner, right_outer = \
             MatchToClosestOldLane([lane1, lane2], old_left_outer, old_left_inner, old_right_inner, old_right_outer)
@@ -255,18 +268,18 @@ def MatchToClosestOldLane(lanes_to_match, old_left_outer, old_left_inner, old_ri
 
         old_angle_array = np.array([left_outer[1], left_inner[1], right_inner[1], right_outer[1]])
         old_angle_array_norm_by_lane = old_angle_array - lane[1]
-        min_dist_lane = np.argmin(old_angle_array_norm_by_lane)
+        min_dist_lane = np.argmin(np.abs(old_angle_array_norm_by_lane))
 
-        if min_dist_lane is 0:
+        if min_dist_lane == 0:
             left_outer = lane
-        elif min_dist_lane is 1:
+        elif min_dist_lane == 1:
             left_inner = lane
-        elif min_dist_lane is 2:
+        elif min_dist_lane == 2:
             right_inner = lane
-        elif min_dist_lane is 3:
+        elif min_dist_lane == 3:
             right_outer = lane
 
-        return left_outer, left_inner, right_inner, right_outer
+    return left_outer, left_inner, right_inner, right_outer
 
 
 def SortLanes(laneL1, laneL2, laneR1, laneR2):
@@ -386,6 +399,9 @@ def RemoveOutliers(cluster):
 def GetCenterPointBetweenLanes(left_lane, right_lane, image):
     center_x = None
 
+    if left_lane is None or right_lane is None:
+        return None
+
     x1 = GetInterceptX(left_lane, image)
     x2 = GetInterceptX(right_lane, image)
 
@@ -397,6 +413,7 @@ def GetCenterPointBetweenLanes(left_lane, right_lane, image):
 def GetInterceptX(lane, image):
 
     # Find x intercepts of each lane, then return center point
+
     theta = lane[1]
     rho = lane[0]
     phi = 90*np.pi/180 + theta

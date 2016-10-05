@@ -9,12 +9,13 @@ import DrawingOp as Draw
 
 # Ignoring Segments
 horizon_offset_origin = 100
-horizon_starting_position = 100
+horizon_offset_init = 100
 horizon_max = 200
-NAME_HORIZON_SLIDER = "H Off"
+NAME_TOP_OFF_SLIDER = "Top Off"
+NAME_BOT_OFF_SLIDER = "Bot Off"
 
 # Canny Filter
-cannyThresholdLow_init = 50
+cannyThresholdLow_init = 120
 cannyThresholdHigh_init = 130
 CANNY_THRESHOLD_MAX = 200
 WINDOW_CANNY = "Canny Filter"
@@ -24,7 +25,7 @@ NAME_FRAME = "Frame"
 NAME_SLOW = "Slow"
 
 # Hough Filter
-hough_threshold = 50
+hough_threshold = 40
 HOUGH_MAX_THRESHOLD = 100
 NAME_HOUGH_THRESHOLD = 'Hough T'
 WINDOW_HOUGH = "Hough Filter"
@@ -52,21 +53,26 @@ def updateImage():
     canny_thresh_low = cv2.getTrackbarPos(NAME_CANNY_LOWER, WINDOW_CANNY)
     canny_thresh_high = cv2.getTrackbarPos(NAME_CANNY_UPPER, WINDOW_CANNY)
     hough_thresh = cv2.getTrackbarPos(NAME_HOUGH_THRESHOLD, WINDOW_HOUGH)
-    horizontal_thresh = cv2.getTrackbarPos(NAME_HORIZON_SLIDER, WINDOW_CANNY)
+    top_pixels_from_center = cv2.getTrackbarPos(NAME_TOP_OFF_SLIDER, WINDOW_CANNY)
+    pixels_from_bottom = cv2.getTrackbarPos(NAME_BOT_OFF_SLIDER, WINDOW_CANNY)
 
     # CANNY FILTER
     canny_img = Filtering.CannyFilter(grayscaled_image, canny_thresh_low, canny_thresh_high)
 
     # REMOVE ABOVE HORIZON
-    removed_horizon_img, horizontal_line = Operations.RemoveAboveHorizon(canny_img,
-                                                                         horizontal_thresh - horizon_offset_origin)
-    removed_horizon_img_w_lines = np.copy(cv2.cvtColor(removed_horizon_img, cv2.COLOR_GRAY2BGR))
-    cv2.line(removed_horizon_img_w_lines, (horizontal_line[0], horizontal_line[1]),
-             (horizontal_line[2], horizontal_line[3]), (0, 0, 255), 2)
-    cv2.imshow(WINDOW_CANNY, removed_horizon_img_w_lines)
+    removed_top_img, top_line = \
+        Operations.RemoveAboveHorizontal(canny_img, top_pixels_from_center - horizon_offset_origin)
+    removed_top_bot_img, bot_line = \
+        Operations.RemoveBelowHorizontal(canny_img, pixels_from_bottom - horizon_offset_origin)
+    removed_top_bot_img_lines = np.copy(cv2.cvtColor(removed_top_bot_img, cv2.COLOR_GRAY2BGR))
+    cv2.line(removed_top_bot_img_lines, (top_line[0], top_line[1]),
+             (top_line[2], top_line[3]), (0, 0, 255), 2)
+    cv2.line(removed_top_bot_img_lines, (top_line[0], top_line[1]),
+             (top_line[2], top_line[3]), (0, 0, 255), 2)
+    cv2.imshow(WINDOW_CANNY, removed_top_bot_img_lines)
 
     # HOUGH FILTER
-    lines = Filtering.HoughFilter(removed_horizon_img, hough_thresh)
+    lines = Filtering.HoughFilter(removed_top_bot_img, hough_thresh)
     # all_lines_image = Draw.DrawHoughLinesOnImage(lines, rgb_image, (0, 0, 255))
 
     # SEPARATE STREETS, GET THE LINES ASSOCIATED WITH YOUR LANE ONLY, BY ANGLE
@@ -113,8 +119,12 @@ def updateImage():
     # DISPLAY PERCENT FROM LEFT AND RIGHT LANE ON IMAGE
     image_width = np.shape(lanes_w_center_line)[1]
     image_height = np.shape(lanes_w_center_line)[0]
-    percent_from_left = (image_width / 2 - x_left) / (x_right - x_left)
-    percent_from_right = (image_width / 2 - x_right) / (x_right - x_left)
+    if x_right == x_left:
+        percent_from_right = 0
+        percent_from_left = 0
+    else:
+        percent_from_left = (image_width / 2 - x_left) / (x_right - x_left)
+        percent_from_right = (image_width / 2 - x_right) / (x_right - x_left)
     left_text = 'Left Lane = ' + str(int(percent_from_left * 100))
     right_text = 'Right Lane = ' + str(int(percent_from_right * 100))
     cv2.putText(lanes_w_center_line, left_text, (0, image_height - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255),
@@ -124,7 +134,7 @@ def updateImage():
 
     # SHOW HOUGH LINE IMAGES
     images = np.array([street_lines_image, lanes_w_center_line])
-    smaller_images = Draw.ScaleAndStackImages(images, 0.5)
+    smaller_images = Draw.ScaleAndStackImages(images, 1.0)
     cv2.imshow(WINDOW_HOUGH, smaller_images)
 
 
@@ -154,6 +164,7 @@ def getNextFrame(cap):
     global grayscaled_image
     ret, frame = cap.read()
     grayscaled_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    cv2.setTrackbarPos(NAME_FRAME, WINDOW_CANNY, int(cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES)))
     updateImage()
 
 
@@ -176,7 +187,8 @@ if __name__ == '__main__':
     # Canny
     cv2.createTrackbar(NAME_CANNY_UPPER, WINDOW_CANNY, cannyThresholdHigh_init, CANNY_THRESHOLD_MAX, onTrackbar)
     cv2.createTrackbar(NAME_CANNY_LOWER, WINDOW_CANNY, cannyThresholdLow_init, CANNY_THRESHOLD_MAX, onTrackbar)
-    cv2.createTrackbar(NAME_HORIZON_SLIDER, WINDOW_CANNY, horizon_starting_position, horizon_max, onTrackbar)
+    cv2.createTrackbar(NAME_TOP_OFF_SLIDER, WINDOW_CANNY, horizon_offset_init, horizon_max, onTrackbar)
+    cv2.createTrackbar(NAME_BOT_OFF_SLIDER, WINDOW_CANNY, 0, horizon_max, onTrackbar)
     cv2.createTrackbar(NAME_SLOW, WINDOW_CANNY, 1, 10, onSlowTrackbar)
 
     # Hough
@@ -188,7 +200,7 @@ if __name__ == '__main__':
     # writer = cv2.VideoWriter('res/Highway.avi', -1, 30, (1280, 720))
 
     cap = cv2.VideoCapture()
-    cap.open('res/Highway.avi')
+    cap.open('res/road.avi')
     num_frames = cap.get(cv2.cv.CV_CAP_PROP_FRAME_COUNT)
     cv2.createTrackbar(NAME_FRAME, WINDOW_CANNY, 0, int(num_frames), onFrameTrackbar)
     while cap.isOpened():
@@ -203,6 +215,7 @@ if __name__ == '__main__':
         current_frame = cap.get(cv2.cv.CV_CAP_PROP_POS_FRAMES)
         frame_rate = cap.get(cv2.cv.CV_CAP_PROP_FPS)
         wait_between_frames = int(1000 * frame_rate_multiplier / frame_rate)
+        wait_between_frames = int(10)
 
         wait_for_key = cv2.waitKey(wait_between_frames)
 
